@@ -1,0 +1,184 @@
+---
+- hosts: ubuntu
+  remote_user: arnold
+  become: yes
+  become_user: root
+  become_method: sudo
+  tasks:
+
+###########Install packages###########
+
+  - name: Install the package ClamAV 
+    apt:
+        name: clamav
+        state: latest
+
+  - name: Install the package cracklib 
+    apt:
+        name: libpam-cracklib
+        state: latest		
+
+  - name: Install the package AIDE 
+    apt:
+        name: aide
+        state: latest
+
+  - name: Install the package fail2ban 
+    apt:
+        name: fail2ban
+        state: latest
+
+  - name: Install the package iptables-persistent
+    apt:
+        name: iptables-persistent
+        state: latest
+
+  - name: Initialize aide database
+    shell: aideinit
+
+  - name: copy aide database
+    shell: cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db
+
+  - name: Install the package arpwatch 
+    apt:
+        name: arpwatch
+        state: latest
+
+  - name: Start arpwatch on boot
+    service: name=arpwatch state=started enabled=yes		 
+
+  - name: Run ARP command Level 35
+    shell: update-rc.d arpwatch defaults 35	
+
+  - name: download Globus
+    get_url:
+        url: http://toolkit.globus.org/ftppub/globus-connect-server/globus-connect-server-repo_latest_all.deb
+        dest: /home/arnold 
+
+  - name: Install a .deb package
+    apt:
+        deb: globus-connect-server-repo_latest_all.deb
+
+  - name: Update all packages to the latest version
+    apt:
+        upgrade: dist
+        update_cache: yes
+
+  - name: Install the package globus-connect-server
+    apt:
+        name: globus-connect-server
+        state: latest
+
+  - dpkg_selections:
+        name: all      
+        selection: purge
+  
+##########Edit config files###########
+
+  - name: grpck fix errors
+    shell: grpconv				 
+
+  - name: modify sshd_config file
+    lineinfile:
+        dest: "/etc/ssh/sshd_config"
+        regexp: "^{{ item.param }}"
+        insertafter: "^;{{ item.param }}"
+        line: "{{ item.param }} {{ item.value }}"
+    with_items:
+        - { param: 'X11Forwarding', value: 'yes' }
+        - { param: 'X11DisplayOffset', value: '10' }
+        - { param: 'AllowTcpForwarding', value: 'no' }
+        - { param: 'ClientAliveCountMax', value: '3' }
+        - { param: 'Compression', value: 'no' }
+        - { param: 'MaxAuthTries', value: '5' }
+        - { param: 'MaxSessions', value: '10' }
+        - { param: 'TCPKeepAlive', value: 'yes' }
+        - { param: 'AllowGroups', value: 'users' }
+        - { param: 'LogLevel', value: 'VERBOSE' }
+        - { param: 'SysLogFacility', value: 'AUTH' }
+        - { param: 'UsePrivilegeSeparation', value: 'SANDBOX' }
+        - { param: 'PermitRootLogin', value: 'no' }
+        - { param: 'PasswordAuthentication', value: 'no' }
+        - { param: 'ClientAliveInterval', value: '60' }
+
+  - name: set minimum password age
+    lineinfile:
+        dest: "/etc/login.defs"
+        regexp: "^{{ item.param }}"
+        insertafter: "^;{{ item.param }}"
+        line: "{{ item.param }}	{{ item.value }}"
+    with_items:
+        - { param: 'PASS_MIN_DAYS', value: '3' }	
+
+  - name: set maximum password age
+    lineinfile:
+        dest: "/etc/login.defs"
+        regexp: "^{{ item.param }}"
+        insertafter: "^;{{ item.param }}"
+        line: "{{ item.param }}	{{ item.value }}"
+    with_items:
+        - { param: 'PASS_MAX_DAYS', value: '90' }
+
+  - name: Set SMTP banner
+    lineinfile:
+        dest: "/etc/postfix/main.cf"
+        regexp: "^{{ item.param }}"
+        insertafter: "^;{{ item.param }}"
+        line: "{{ item.param }} = {{ item.value }}"
+    with_items:
+        - { param: 'smtpd_banner', value: '$myhostname ESMTP' }		
+
+###########IPtables Rules###########
+
+  - name: Allow localhost connections
+    shell: iptables -A INPUT -i lo -j ACCEPT
+
+  - name: Allow related and established connections
+    shell: iptables -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT     
+
+  - name: Allow inbound connection on Port 2811 
+    shell: iptables -A INPUT -p tcp -m tcp -s 184.73.189.163 --dport 2811 -j ACCEPT
+
+  - name: Allow inbound connection on Port 2811
+    shell: iptables -A INPUT -p tcp -m tcp -s 174.129.226.69 --dport 2811 -j ACCEPT
+
+  - name: Allow inbound /connection on Port 50000-51000
+    shell: iptables -A INPUT -p tcp -m tcp --dport 50000:51000 -j ACCEPT
+
+  - name: Allow outbound connection on Port 50000-51000
+    shell: iptables -A OUTPUT -p tcp -m tcp --dport 50000:51000 -j ACCEPT
+
+  - name: Allow outbound connection on Port 2223
+    shell: iptables -A OUTPUT -p tcp -m tcp -d 184.73.189.163 --dport 2223 -j ACCEPT
+
+  - name: Allow outbound connection on Port 443
+    shell: iptables -A OUTPUT -p tcp -m tcp -d 174.129.226.29 --dport 443 -j ACCEPT
+
+  - name: Allow outbound connection on Port 80
+    shell: iptables -A OUTPUT -p tcp -m tcp -d 192.5.186.47 --sport 80 -j ACCEPT
+
+  - name: Allow inbound connection on Port 7512
+    shell: iptables -A INPUT -p tcp -m tcp -s 174.129.226.69 --sport 7512 -j ACCEPT
+
+  - name: Allow connections on SSH
+    shell: iptables -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT
+
+  - name: Allow connections on HTTP
+    shell: iptables -A INPUT -p tcp -m tcp --dport 80 -j ACCEPT
+
+  - name: Allow connections on HTTPS
+    shell: iptables -A INPUT -p tcp -m tcp --dport 443 -j ACCEPT
+
+  - name: Drop other connections
+    shell: iptables -A INPUT -j DROP
+
+###########Save IPtables rules###########
+
+  - name: Save iptables IPv4 rules
+    shell: iptables-save > /etc/iptables/rules.v4
+
+###########System Reboot###########			 
+
+  - name: reboot server
+    shell: reboot	 
+
