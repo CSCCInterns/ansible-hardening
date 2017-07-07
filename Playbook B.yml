@@ -148,16 +148,16 @@
   - name: [Globus] Allow outbound connections on Port 50000-51000
     shell: iptables -A OUTPUT -p tcp -m tcp --dport 50000:51000 -j ACCEPT
 
-  - name: [Globus] Allow outbound connections on Port 2223
+  - name: [Globus] Allow outbound connections to Globus server on Port 2223
     shell: iptables -A OUTPUT -p tcp -m tcp -d 184.73.189.163 --dport 2223 -j ACCEPT
 
-  - name: Allow outbound connections to Globus server on Port 443
+  - name: [Globus] Allow outbound connections to Globus server on Port 443
     shell: iptables -A OUTPUT -p tcp -m tcp -d 174.129.226.29 --dport 443 -j ACCEPT
 
-  - name: Allow outbound connections to Globus server on Port 80
+  - name: [Globus] Allow outbound connections to Globus server on Port 80
     shell: iptables -A OUTPUT -p tcp -m tcp -d 192.5.186.47 --sport 80 -j ACCEPT
 
-  - name: Allow inbound connections to Globus server on Port 7512
+  - name: [Globus] Allow inbound connections to Globus server on Port 7512
     shell: iptables -A INPUT -p tcp -m tcp -s 174.129.226.69 --sport 7512 -j ACCEPT
 
   - name: Allow inbound connections to SSH
